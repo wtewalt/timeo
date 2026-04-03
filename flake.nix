@@ -23,7 +23,7 @@
 
     pre-commit-hooks = {
       url = "github:cachix/git-hooks.nix"; 
-      inputs.nixpackages.follows = "nixpkgs";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
     # pre-commit-hooks.url = "github:cachix/git-hooks.nix";
     # pre-commit-hooks.inputs.nixpkgs.follows = "nixpkgs";
@@ -38,6 +38,7 @@
         # Load your pyproject.toml / uv.lock workspace
         workspace = uv2nix.lib.workspace.loadWorkspace {
           workspaceRoot = ./.;
+          # workspaceRoot = self;
         };
 
         # Build a package overlay from the resolved lockfile
