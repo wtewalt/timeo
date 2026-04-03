@@ -17,4 +17,4 @@ jobs:
           # Use a GitHub token or personal access token:
           token: ${{ secrets.GITHUB_TOKEN }}
           # A simple release strategy (no code version file):
-          release-type: simple
+          release-type: python
