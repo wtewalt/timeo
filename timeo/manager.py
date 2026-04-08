@@ -97,7 +97,6 @@ class ProgressManager:
             task.elapsed = elapsed
 
             if task.rich_task_id is not None:
-                # Collapse to checkmark + elapsed summary.
                 summary = f"[green]✓[/green] {task.name}  [dim]{elapsed:.1f}s[/dim]"
                 self._progress.update(
                     task.rich_task_id,
