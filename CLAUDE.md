@@ -166,10 +166,41 @@ An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using e
 - If the hash does not match any cached entry, treat it as a brand-new function (show "Learning timing..." and start fresh).
 - Old/stale entries for the previous hash are not automatically deleted — they accumulate silently. A future cache cleanup utility can address this.
 
-## Open Questions / Decisions to Make
+## Design Decisions
 
-- **How is `total` determined?** — Does the user pass it as a decorator argument (`@timeo.track(total=100)`)? Is it inferred if the function receives a `Sized` iterable?
-- **How does `advance()` work?** — Global function that advances the currently-executing tracked task? Context-var based?
-- **Automatic iteration wrapping** — Should `timeo` offer a way to auto-wrap a `for` loop (e.g., `for item in timeo.iter(items)`) to auto-advance without manual `advance()` calls?
-- **Concurrent functions** — How are two simultaneously-running tracked functions handled? (likely fine with `rich`'s multi-task support)
-- **Display lifecycle** — When does the live display start and stop? On first decorated function call? Via a context manager?
+### `total` — Inferred from `Sized` args
+`timeo` inspects the arguments passed to a decorated function at call time and looks for any that implement `__len__()`. The first `Sized` argument found is used as `total`. No user input required. If no `Sized` argument is found, the bar is indeterminate.
+
+### `advance()` — `contextvars.ContextVar` (under the hood)
+`timeo.advance()` uses a `ContextVar` internally to know which task to update. The decorator pushes the current task onto the `ContextVar` before the function runs and pops it when it returns. This is fully transparent to the user — they only call `timeo.advance()`, no context management required. This also makes concurrent functions safe: threads and async tasks each see their own isolated `ContextVar` value.
+
+### Iteration wrapping — `timeo.iter()`
+`timeo.iter(items)` is supported as a convenience wrapper that automatically calls `advance()` on each iteration, eliminating the need for manual `advance()` calls:
+
+```python
+@timeo.track
+def process_files(files):
+    for f in timeo.iter(files):
+        handle(f)
+```
+
+### Concurrent functions — Stacked bars with completed tasks collapsed
+Multiple simultaneously-running tracked functions are each given their own row in the live display. When a function completes, its bar collapses to a single summary line with a checkmark and elapsed time. Only in-progress bars are shown in full:
+
+```
+✓ process_files    12.4s
+download_data    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  72% 0:00:04
+compress_output  ━━━━━━━━━━                 20% 0:00:31
+```
+
+### Display lifecycle — Hybrid (automatic with optional explicit control)
+By default, the live display starts automatically on the first decorated function call and tears down when the last tracked function finishes. Teardown is guaranteed via `try/finally` in the decorator so exceptions never leave the terminal in a broken state. A reference counter tracks how many tasks are active; the display is torn down when it reaches zero.
+
+For complex scripts where automatic teardown is insufficient (e.g., conditional branching, multiprocessing), the user can take explicit control with a context manager:
+
+```python
+with timeo.live():
+    process_files(my_files)
+    download_data(my_urls)
+# display always tears down cleanly here
+```
