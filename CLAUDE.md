@@ -114,10 +114,93 @@ timeo/
 └── task.py           # TrackedTask dataclass/model
 ```
 
-## Open Questions / Decisions to Make
+## Timing-Based Progress Estimation
 
-- **How is `total` determined?** — Does the user pass it as a decorator argument (`@timeo.track(total=100)`)? Is it inferred if the function receives a `Sized` iterable?
-- **How does `advance()` work?** — Global function that advances the currently-executing tracked task? Context-var based?
-- **Automatic iteration wrapping** — Should `timeo` offer a way to auto-wrap a `for` loop (e.g., `for item in timeo.iter(items)`) to auto-advance without manual `advance()` calls?
-- **Concurrent functions** — How are two simultaneously-running tracked functions handled? (likely fine with `rich`'s multi-task support)
-- **Display lifecycle** — When does the live display start and stop? On first decorated function call? Via a context manager?
+### Overview
+
+An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using elapsed time against an expected duration gleaned from previous runs of that function. Rather than tracking discrete steps, the bar fills as `elapsed / expected_duration`.
+
+### Opt-In Behavior
+
+- Default behavior is **unchanged** — `@timeo.track` with no arguments works as always (step-based or indeterminate).
+- Time-based estimation is activated explicitly: `@timeo.track(learn=True)`.
+- On the **first run** (no cached data yet), display an indeterminate progress bar with a "Learning timing..." label so the user knows data is being collected but no estimate is available yet.
+- On subsequent runs, use the cached EMA estimate to render a determinate time-driven progress bar.
+
+### Local Timing Cache
+
+- Stored at `~/.cache/timeo/timings.json` (use `platformdirs` for cross-platform path resolution).
+- Each entry is keyed by a **hash of the function's bytecode** (`dis` or `inspect` + `hashlib`) rather than its name or module path. This ensures the cache automatically invalidates when the function's implementation changes — a refactored or updated function is treated as a new function with no prior data.
+- Cache entry schema:
+  ```json
+  {
+    "<fn_hash>": {
+      "name": "my_module.process_files",
+      "ema_duration_seconds": 12.4,
+      "run_count": 7,
+      "last_updated": "2026-04-08T00:00:00Z"
+    }
+  }
+  ```
+- `name` is stored for human readability/debugging only — it is never used as a lookup key.
+
+### EMA Strategy
+
+- After each run completes, update the stored estimate using an **Exponential Moving Average**:
+  ```
+  ema = alpha * actual_duration + (1 - alpha) * previous_ema
+  ```
+- Suggested default `alpha = 0.2` (weights recent runs moderately; can be tuned).
+- On the very first run, `ema` is seeded with the actual duration directly (no prior value to blend with).
+- The EMA converges quickly enough that estimates become useful within 3–5 runs.
+
+### Progress Bar Behavior
+
+- The bar advances by `elapsed_time / ema_duration`, updated on a tick interval.
+- If the function **overruns** the estimate, the bar stalls at ~99% rather than exceeding 100% or erroring — it completes to 100% only when the function actually returns.
+- `rich` custom progress columns will be used to render this time-driven bar alongside any step-based bars in the same live display.
+
+### Function Change Detection
+
+- At call time, hash the function's bytecode (`fn.__code__.co_code` or the full `code` object via `marshal`/`hashlib`).
+- If the hash does not match any cached entry, treat it as a brand-new function (show "Learning timing..." and start fresh).
+- Old/stale entries for the previous hash are not automatically deleted — they accumulate silently. A future cache cleanup utility can address this.
+
+## Design Decisions
+
+### `total` — Inferred from `Sized` args
+`timeo` inspects the arguments passed to a decorated function at call time and looks for any that implement `__len__()`. The first `Sized` argument found is used as `total`. No user input required. If no `Sized` argument is found, the bar is indeterminate.
+
+### `advance()` — `contextvars.ContextVar` (under the hood)
+`timeo.advance()` uses a `ContextVar` internally to know which task to update. The decorator pushes the current task onto the `ContextVar` before the function runs and pops it when it returns. This is fully transparent to the user — they only call `timeo.advance()`, no context management required. This also makes concurrent functions safe: threads and async tasks each see their own isolated `ContextVar` value.
+
+### Iteration wrapping — `timeo.iter()`
+`timeo.iter(items)` is supported as a convenience wrapper that automatically calls `advance()` on each iteration, eliminating the need for manual `advance()` calls:
+
+```python
+@timeo.track
+def process_files(files):
+    for f in timeo.iter(files):
+        handle(f)
+```
+
+### Concurrent functions — Stacked bars with completed tasks collapsed
+Multiple simultaneously-running tracked functions are each given their own row in the live display. When a function completes, its bar collapses to a single summary line with a checkmark and elapsed time. Only in-progress bars are shown in full:
+
+```
+✓ process_files    12.4s
+download_data    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  72% 0:00:04
+compress_output  ━━━━━━━━━━                 20% 0:00:31
+```
+
+### Display lifecycle — Hybrid (automatic with optional explicit control)
+By default, the live display starts automatically on the first decorated function call and tears down when the last tracked function finishes. Teardown is guaranteed via `try/finally` in the decorator so exceptions never leave the terminal in a broken state. A reference counter tracks how many tasks are active; the display is torn down when it reaches zero.
+
+For complex scripts where automatic teardown is insufficient (e.g., conditional branching, multiprocessing), the user can take explicit control with a context manager:
+
+```python
+with timeo.live():
+    process_files(my_files)
+    download_data(my_urls)
+# display always tears down cleanly here
+```
