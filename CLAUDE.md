@@ -55,6 +55,27 @@ Downloading data   ━━━━━━━━━━━━━━━━━━━━�
 
 - **`rich`** — All progress bar rendering, formatting, and live display. Use `rich.progress.Progress` with `rich.live.Live` for the unified multi-bar display.
 
+## Releasing
+
+### Release Process
+
+This repo uses **[release-please](https://github.com/googleapis/release-please)** to automate versioning and changelog generation. It parses conventional commits on `main` to determine the next version and opens a release PR automatically.
+
+- Merge the release-please PR on `main` to cut a new release.
+- On release, a GitHub Actions workflow automatically builds and publishes the package to **PyPI**.
+- The version in `pyproject.toml` is the source of truth and is updated by release-please.
+
+### Conventional Commits
+
+All commits must follow the [Conventional Commits](https://www.conventionalcommits.org/) spec since release-please relies on them to determine version bumps:
+
+| Prefix | Effect |
+|--------|--------|
+| `fix:` | Patch bump |
+| `feat:` | Minor bump |
+| `feat!:` / `BREAKING CHANGE:` | Major bump |
+| `docs:`, `chore:`, `refactor:`, etc. | No version bump |
+
 ## Development
 
 ### Setup
@@ -66,12 +87,19 @@ task dev         # or however the dev environment is activated
 
 ### Code Quality
 
-Pre-commit hooks enforce:
+This repo uses **[pre-commit](https://pre-commit.com/)** to enforce code quality on every commit. Hooks are defined in `.pre-commit-config.yaml`.
+
+Install hooks locally (one-time):
+```bash
+pre-commit install
+```
+
+Hooks enforced:
 - **ruff** — linting and formatting
 - **mypy** — static type checking
 - TOML/YAML validation
 
-Run manually:
+Run manually against all files:
 ```bash
 pre-commit run --all-files
 ```
