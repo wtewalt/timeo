@@ -1,8 +1,39 @@
-# timeo
+<div align="center">
 
-Terminal progress bars for Python functions, powered by decorators and [`rich`](https://github.com/Textualize/rich).
+# ⏱ timeo
 
-Decorate any function with `@timeo.track` and get a live progress bar in your terminal automatically — no manual wiring required.
+**Terminal progress bars for Python functions — just add a decorator.**
+
+[![PyPI](https://img.shields.io/pypi/v/timeo?color=blue&label=pypi)](https://pypi.org/project/timeo/)
+[![Python](https://img.shields.io/pypi/pyversions/timeo)](https://pypi.org/project/timeo/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://github.com/wtewalt/timeo/actions/workflows/ci.yml/badge.svg)](https://github.com/wtewalt/timeo/actions)
+
+```
+✓ process_files   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  100%  12.4s
+  download_data   ━━━━━━━━━━━━━━━━━━━━━━━          72%   0:00:04
+  compress_output ━━━━━━                           20%   0:00:31
+```
+
+</div>
+
+---
+
+## Why timeo?
+
+Most progress bar libraries ask you to wrap your loops manually and manage the display yourself. `timeo` gets out of the way — decorate a function, iterate normally, done.
+
+```python
+# before
+for item in items:
+    process(item)
+
+# after
+@timeo.track
+def run(items):
+    for item in timeo.iter(items):
+        process(item)
+```
 
 ---
 
@@ -16,9 +47,9 @@ pip install timeo
 
 ## Usage
 
-### Basic — step-based progress
+### Basic progress bar
 
-Apply `@timeo.track` to any function. `timeo` will infer the total number of steps from the first argument that has a `len()`. Use `timeo.iter()` inside the function to advance the bar automatically on each iteration:
+`@timeo.track` wraps any function with a live progress bar. The total is inferred automatically from the first argument with a `len()`. Use `timeo.iter()` to advance the bar on each iteration — no manual bookkeeping needed.
 
 ```python
 import timeo
@@ -31,7 +62,7 @@ def process_files(files):
 process_files(my_files)
 ```
 
-Or advance manually with `timeo.advance()` if you need finer control:
+Prefer manual control? Use `timeo.advance()` instead:
 
 ```python
 @timeo.track
@@ -41,17 +72,11 @@ def process_files(files):
         timeo.advance()
 ```
 
-Terminal output while running:
-
-```
-process_files  ━━━━━━━━━━━━━━━━━━━━━━━━  45% 0:00:12
-```
-
 ---
 
-### Multiple functions
+### Multiple concurrent functions
 
-Multiple decorated functions each get their own bar. Completed bars collapse to a summary line:
+Every decorated function gets its own bar. They render together in a single live display. Finished bars collapse to a compact summary line so the output stays clean.
 
 ```python
 @timeo.track
@@ -69,59 +94,66 @@ download_data(my_urls)
 ```
 
 ```
-✓ process_files   12.4s
-download_data   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  72% 0:00:04
+✓ process_files   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  100%  12.4s
+  download_data   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   72%  0:00:04
 ```
+
+Concurrent execution (threads) is fully supported — each bar tracks its own function independently.
 
 ---
 
-### Learn mode — time-based progress
+### Learn mode
 
-Use `learn=True` to have `timeo` learn how long a function typically takes and use that to drive the progress bar by time instead of steps:
+Add `learn=True` and `timeo` will remember how long your function takes across runs, building an EMA (exponential moving average) of its runtime. Instead of counting steps, the bar fills over the expected duration.
 
 ```python
 @timeo.track(learn=True)
 def run_pipeline(data):
     heavy_computation(data)
     more_work(data)
-
-run_pipeline(my_data)
 ```
 
-- **First run:** shows an indeterminate bar labelled `run_pipeline (learning...)` while timing data is collected.
-- **Subsequent runs:** shows a determinate bar that fills over the expected duration based on an exponential moving average (EMA) of previous runtimes.
-- Timing data is stored locally at `~/.cache/timeo/timings.json`.
-- If the function's implementation changes, the cache automatically invalidates and learning restarts.
+| Run | Behaviour |
+|-----|-----------|
+| First | Indeterminate spinner with `run_pipeline (learning...)` label |
+| Subsequent | Determinate bar filling over the expected duration |
+| After code change | Cache invalidates automatically — learning restarts |
+
+Timing data lives at `~/.cache/timeo/timings.json`. The cache key is a hash of the function's bytecode — not its name — so renaming a function preserves its history, and changing its implementation resets it.
 
 ---
 
 ### Explicit display control
 
-By default the live display starts and stops automatically. For complex scripts, use `timeo.live()` to take explicit control:
+The live display starts and stops automatically in most cases. For complex scripts with branching logic or long-running setup, use `timeo.live()` to pin the display lifetime explicitly:
 
 ```python
 with timeo.live():
     process_files(my_files)
     download_data(my_urls)
-# display always tears down cleanly here
+    # display stays open until the with-block exits
 ```
 
 ---
 
 ## How it works
 
-- `@timeo.track` wraps the decorated function and registers it with a central `ProgressManager`.
-- `total` is inferred from the first `Sized` argument passed to the function (i.e. anything with `len()`). If none is found, an indeterminate spinner is shown.
-- `timeo.iter()` wraps any iterable and calls `timeo.advance()` on each iteration automatically.
-- The live display is backed by `rich.progress` and `rich.live`, rendering all active bars together in a single unified display.
-- Concurrent functions (e.g. threads) are fully supported — each gets its own bar and the underlying `ContextVar` ensures `timeo.advance()` always updates the correct task.
+| Piece | Role |
+|---|---|
+| `@timeo.track` | Wraps the function, infers `total` from `Sized` args, manages the task lifecycle |
+| `ProgressManager` | Singleton owning the `rich` live display; reference-counted so it tears down only when all tasks finish |
+| `TrackedTask` | Dataclass holding per-function progress state |
+| `timeo.iter()` | Thin generator wrapper that calls `advance()` on each item |
+| `ContextVar` | Ensures `timeo.advance()` always updates the *right* bar, even across threads |
+
+The display is built on [`rich.progress`](https://rich.readthedocs.io/en/stable/progress.html) and [`rich.live`](https://rich.readthedocs.io/en/stable/live.html).
 
 ---
 
 ## Contributing
 
 ```bash
-# Enter the nix development shell first
+# Enter the nix development shell
 nix develop
 
 # Install dependencies
@@ -133,8 +165,14 @@ pre-commit install
 # Run tests
 pytest
 
-# Run all pre-commit checks
+# Run linting and formatting
 pre-commit run --all-files
 ```
 
-All commits must follow [Conventional Commits](https://www.conventionalcommits.org/). See [`CONVENTIONS.md`](CONVENTIONS.md) for full contribution guidelines.
+All commits must follow [Conventional Commits](https://www.conventionalcommits.org/). See [`CONVENTIONS.md`](CONVENTIONS.md) for full guidelines.
+
+---
+
+<div align="center">
+  <sub>Built with <a href="https://github.com/Textualize/rich">rich</a> · MIT License</sub>
+</div>
