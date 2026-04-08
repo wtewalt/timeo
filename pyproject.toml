@@ -1,9 +1,10 @@
 [project]
 name = "timeo"
 version = "0.1.0"
-description = "Add your description here"
+description = "Terminal progress bars via decorators"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "platformdirs>=4.0",
     "rich>=14.3.3",
 ]
