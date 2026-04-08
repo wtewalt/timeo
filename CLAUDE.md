@@ -114,6 +114,58 @@ timeo/
 └── task.py           # TrackedTask dataclass/model
 ```
 
+## Timing-Based Progress Estimation
+
+### Overview
+
+An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using elapsed time against an expected duration gleaned from previous runs of that function. Rather than tracking discrete steps, the bar fills as `elapsed / expected_duration`.
+
+### Opt-In Behavior
+
+- Default behavior is **unchanged** — `@timeo.track` with no arguments works as always (step-based or indeterminate).
+- Time-based estimation is activated explicitly: `@timeo.track(learn=True)`.
+- On the **first run** (no cached data yet), display an indeterminate progress bar with a "Learning timing..." label so the user knows data is being collected but no estimate is available yet.
+- On subsequent runs, use the cached EMA estimate to render a determinate time-driven progress bar.
+
+### Local Timing Cache
+
+- Stored at `~/.cache/timeo/timings.json` (use `platformdirs` for cross-platform path resolution).
+- Each entry is keyed by a **hash of the function's bytecode** (`dis` or `inspect` + `hashlib`) rather than its name or module path. This ensures the cache automatically invalidates when the function's implementation changes — a refactored or updated function is treated as a new function with no prior data.
+- Cache entry schema:
+  ```json
+  {
+    "<fn_hash>": {
+      "name": "my_module.process_files",
+      "ema_duration_seconds": 12.4,
+      "run_count": 7,
+      "last_updated": "2026-04-08T00:00:00Z"
+    }
+  }
+  ```
+- `name` is stored for human readability/debugging only — it is never used as a lookup key.
+
+### EMA Strategy
+
+- After each run completes, update the stored estimate using an **Exponential Moving Average**:
+  ```
+  ema = alpha * actual_duration + (1 - alpha) * previous_ema
+  ```
+- Suggested default `alpha = 0.2` (weights recent runs moderately; can be tuned).
+- On the very first run, `ema` is seeded with the actual duration directly (no prior value to blend with).
+- The EMA converges quickly enough that estimates become useful within 3–5 runs.
+
+### Progress Bar Behavior
+
+- The bar advances by `elapsed_time / ema_duration`, updated on a tick interval.
+- If the function **overruns** the estimate, the bar stalls at ~99% rather than exceeding 100% or erroring — it completes to 100% only when the function actually returns.
+- `rich` custom progress columns will be used to render this time-driven bar alongside any step-based bars in the same live display.
+
+### Function Change Detection
+
+- At call time, hash the function's bytecode (`fn.__code__.co_code` or the full `code` object via `marshal`/`hashlib`).
+- If the hash does not match any cached entry, treat it as a brand-new function (show "Learning timing..." and start fresh).
+- Old/stale entries for the previous hash are not automatically deleted — they accumulate silently. A future cache cleanup utility can address this.
+
 ## Open Questions / Decisions to Make
 
 - **How is `total` determined?** — Does the user pass it as a decorator argument (`@timeo.track(total=100)`)? Is it inferred if the function receives a `Sized` iterable?
