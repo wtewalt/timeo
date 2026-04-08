@@ -4,6 +4,23 @@ Best practices and rules for making changes to this repository.
 
 ---
 
+## Development Environment
+
+This repo uses [Nix flakes](https://nixos.wiki/wiki/Flakes) to provide a fully reproducible development environment. **All development and testing must be done inside the Nix shell.** Tools like `uv`, `python`, `task`, and `pre-commit` are provided by the Nix environment and may not be available outside of it.
+
+### Entering the shell
+
+```bash
+nix develop
+```
+
+This drops you into a shell with all dependencies and tools available. Run this before doing anything else in the repo.
+
+### Why
+Running commands outside the Nix shell (e.g., using a system Python or a globally installed `uv`) risks version mismatches and unreproducible behaviour. Always use the Nix shell.
+
+---
+
 ## Commits
 
 All commits must follow the [Conventional Commits](https://www.conventionalcommits.org/) spec. This is required — release-please parses commit messages on `main` to determine version bumps and generate the changelog automatically.
