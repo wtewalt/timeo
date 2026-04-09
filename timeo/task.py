@@ -2,7 +2,9 @@
 TrackedTask — state container for a single decorated function's progress.
 """
 
-from dataclasses import dataclass, field
+from __future__ import annotations
+
+from dataclasses import dataclass
 
 from rich.progress import TaskID
 
