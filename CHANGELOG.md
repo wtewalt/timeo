@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.2.0](https://github.com/wtewalt/timeo/compare/v0.1.0...v0.2.0) (2026-04-09)
+
+
+### Features
+
+* add smoke test scripts for sequential, concurrent, and live con… ([92f52a8](https://github.com/wtewalt/timeo/commit/92f52a8f7d5a658afd17d9df0abb33ef95f479f7))
+* add smoke test scripts for sequential, concurrent, and live context modes ([6f14c94](https://github.com/wtewalt/timeo/commit/6f14c94cc424ea4afd1885f674e21e395b5e3007))
+* add test suite for task, hashing, cache, decorator, and learn mode ([754fd86](https://github.com/wtewalt/timeo/commit/754fd86a95280c2e7312ba0a02cb79162531d2aa))
+* implement [@timeo](https://github.com/timeo).track decorator, advance(), and iter() ([8894dbf](https://github.com/wtewalt/timeo/commit/8894dbfe853b4e57ef35a4fed97202f4a07107d5))
+* implement learn mode (learn=True) with EMA-driven progress bar ([946ea49](https://github.com/wtewalt/timeo/commit/946ea49b60fe3d512cf4a10f0922193b3479d9cc))
+* implement learn mode (learn=True) with EMA-driven progress bar ([dda6553](https://github.com/wtewalt/timeo/commit/dda6553476345e62bea4dda0943e6392c14b0fda))
+* implement ProgressManager singleton ([d352bb8](https://github.com/wtewalt/timeo/commit/d352bb87be0baddae592e02359bc90e8456c22d2))
+* implement ProgressManager singleton ([83a9151](https://github.com/wtewalt/timeo/commit/83a91510eb4643f4ab7a0e78bfe4d7463af18fec))
+* implement timing cache and function bytecode hashing ([9bf46fb](https://github.com/wtewalt/timeo/commit/9bf46fb491da12e616f9a5582fe5f3ee91d24012))
+* implement timing cache and function bytecode hashing ([7942968](https://github.com/wtewalt/timeo/commit/7942968c7bbb73b5cd290af1b4258677d9550192))
+* implement TrackedTask model ([b7421e3](https://github.com/wtewalt/timeo/commit/b7421e39146bbfdfcf3a9997a86341486cf8f994))
+* scaffold timeo package structure ([fd042bb](https://github.com/wtewalt/timeo/commit/fd042bbb2f2e5e5c0ffca2d2affa9d09875b6cfe))
+
+
+### Bug Fixes
+
+* add future annotations import to task.py for Python 3.9 compat ([6fc84f3](https://github.com/wtewalt/timeo/commit/6fc84f318a5ab8c7ea58bbc608eb308e5832ac39))
+* add future annotations import to task.py for Python 3.9 compat ([e365cf7](https://github.com/wtewalt/timeo/commit/e365cf793dde69fd8faf8aae6c3a640e2a970225))
+* restore ProgressManager implementation on feat/track-decorator branch ([7366fc7](https://github.com/wtewalt/timeo/commit/7366fc7f823f9f890f8a50f3c26301a1b63e3ebc))
+* updated script for initial test ([a02281d](https://github.com/wtewalt/timeo/commit/a02281de1bb0766b0d42d8cbeab4212a8ab11776))
+* use endswith for qualname assertion in learn mode test ([893dda8](https://github.com/wtewalt/timeo/commit/893dda81955ba21af89fc91d318dac303b7673cb))
+
+
+### Documentation
+
+* add CLAUDE.md with project overview and architecture ([369a524](https://github.com/wtewalt/timeo/commit/369a524e7f39c620018b337653b06c6d9b5bc267))
+* add CONVENTIONS.md with commit, branch, pre-commit, and release standards ([2cdb283](https://github.com/wtewalt/timeo/commit/2cdb283ce5b0ca844eaaa6426973cf762e553ddf))
+* add nix shell requirement to development environment section ([7a2b2ec](https://github.com/wtewalt/timeo/commit/7a2b2ec825e755c0490d1bfe7508fc2a5f90e7dc))
+* add stepwise development plan in steps/ ([300f3b8](https://github.com/wtewalt/timeo/commit/300f3b8f2ca8964455c37285dee161af997a33cf))
+* add timing-based progress estimation design to CLAUDE.md ([d6bcb9b](https://github.com/wtewalt/timeo/commit/d6bcb9bcd5c6ac891c55bd8a950b33720f5f8d84))
+* document release-please, PyPI publishing, and pre-commit setup ([7d82fad](https://github.com/wtewalt/timeo/commit/7d82fad72d1682cf1aab0bfd54d14d001906e507))
+* redesign README with badges, tables, and improved formatting ([bdb3f3f](https://github.com/wtewalt/timeo/commit/bdb3f3f22b644847c7423d68a6218276d01600be))
+* resolve all open design questions in CLAUDE.md ([7acf12a](https://github.com/wtewalt/timeo/commit/7acf12a0861a29cb54f23cce5196b1ba4c7ec033))
+* write README with usage examples for basic, learn, and concurrent modes ([87201b5](https://github.com/wtewalt/timeo/commit/87201b5abfa65d905e9b21f426df99a6ff38e35d))
+
 ## 0.1.0 (2026-04-03)
 
 
