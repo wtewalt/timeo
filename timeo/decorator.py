@@ -10,6 +10,8 @@ from collections.abc import Generator, Iterable, Sized
 from contextvars import ContextVar
 from typing import Any, Callable, TypeVar
 
+from timeo.cache import get_entry, update_entry
+from timeo.hashing import hash_function
 from timeo.manager import ProgressManager
 from timeo.task import TrackedTask
 
@@ -62,12 +64,32 @@ def track(fn: F | None = None, *, learn: bool = False) -> Any:
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            total = _infer_total(*args, **kwargs)
-            task = TrackedTask(
-                name=func.__name__,
-                total=total,
-                learn=learn,
-            )
+            if learn:
+                fn_hash = hash_function(func)
+                entry = get_entry(fn_hash)
+                if entry is None:
+                    # First run — indeterminate bar with learning label.
+                    task = TrackedTask(
+                        name=f"{func.__name__} (learning...)",
+                        total=None,
+                        learn=True,
+                        ema_duration_seconds=None,
+                    )
+                else:
+                    # Subsequent run — time-driven bar using the EMA estimate.
+                    task = TrackedTask(
+                        name=func.__name__,
+                        total=None,
+                        learn=True,
+                        ema_duration_seconds=entry.ema_duration_seconds,
+                    )
+            else:
+                total = _infer_total(*args, **kwargs)
+                task = TrackedTask(
+                    name=func.__name__,
+                    total=total,
+                    learn=False,
+                )
 
             manager = ProgressManager.get()
             manager.start_task(task)
@@ -80,6 +102,8 @@ def track(fn: F | None = None, *, learn: bool = False) -> Any:
                 elapsed = time.perf_counter() - start
                 _current_task.reset(token)
                 manager.finish_task(task, elapsed=elapsed)
+                if learn:
+                    update_entry(hash_function(func), func.__qualname__, elapsed)
 
         return wrapper  # type: ignore[return-value]
 
