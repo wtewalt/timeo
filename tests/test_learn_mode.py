@@ -103,7 +103,7 @@ def test_learn_mode_updates_cache_after_run(mocker) -> None:
     mock_update.assert_called_once()
     call_args = mock_update.call_args
     assert call_args[0][0] == "deadbeef"  # fn_hash
-    assert call_args[0][1] == "my_func"  # qualname
+    assert call_args[0][1].endswith("my_func")  # qualname includes enclosing scope
     assert call_args[0][2] >= 0.0  # elapsed
 
 
