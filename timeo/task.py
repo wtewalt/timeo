@@ -5,6 +5,7 @@ TrackedTask — state container for a single decorated function's progress.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from rich.progress import TaskID
 
@@ -22,6 +23,7 @@ class TrackedTask:
     start_time: float | None = None
     learn: bool = False
     ema_duration_seconds: float | None = None
+    cache_path: Path | None = None
 
     def advance(self, amount: int = 1) -> None:
         """Increment completed by amount, capped at total if set."""

@@ -6,7 +6,14 @@ from unittest.mock import patch
 
 import pytest
 
-from timeo.cache import ALPHA, TimingEntry, get_entry, load_cache, update_entry
+from timeo.cache import (
+    ALPHA,
+    TimingEntry,
+    get_entry,
+    load_cache,
+    resolve_cache_path,
+    update_entry,
+)
 
 
 def _patch_cache_path(tmp_path: Path):
@@ -109,3 +116,53 @@ def test_cache_file_is_valid_json_after_write(tmp_path: Path) -> None:
         update_entry("abc123", "my_func", 4.0)
     raw = json.loads(cache_file.read_text(encoding="utf-8"))
     assert "abc123" in raw
+
+
+# ---------------------------------------------------------------------------
+# resolve_cache_path
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_cache_path_user_contains_timeo() -> None:
+    path = resolve_cache_path("user")
+    assert "timeo" in str(path)
+    assert path.name == "timings.json"
+
+
+def test_resolve_cache_path_project(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    path = resolve_cache_path("project")
+    assert path == tmp_path / ".timeo" / "timings.json"
+
+
+def test_resolve_cache_path_invalid_raises() -> None:
+    with pytest.raises(ValueError, match="Invalid cache location"):
+        resolve_cache_path("bogus")
+
+
+# ---------------------------------------------------------------------------
+# cache_path parameter threading
+# ---------------------------------------------------------------------------
+
+
+def test_get_entry_uses_supplied_cache_path(tmp_path: Path) -> None:
+    cache_file = tmp_path / "custom.json"
+    update_entry("abc123", "my_func", 5.0, cache_path=cache_file)
+    entry = get_entry("abc123", cache_path=cache_file)
+    assert entry is not None
+    assert entry.ema_duration_seconds == pytest.approx(5.0)
+
+
+def test_update_entry_writes_to_supplied_cache_path(tmp_path: Path) -> None:
+    cache_file = tmp_path / "sub" / "timings.json"
+    update_entry("abc123", "my_func", 3.0, cache_path=cache_file)
+    assert cache_file.exists()
+    raw = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert "abc123" in raw
+
+
+def test_load_cache_uses_supplied_cache_path(tmp_path: Path) -> None:
+    cache_file = tmp_path / "timings.json"
+    update_entry("abc123", "my_func", 2.0, cache_path=cache_file)
+    result = load_cache(cache_path=cache_file)
+    assert "abc123" in result

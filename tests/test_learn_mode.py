@@ -132,3 +132,47 @@ def test_learn_mode_does_not_affect_standard_track(mocker) -> None:
     my_func([1, 2, 3])
 
     mock_update.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# cache= parameter
+# ---------------------------------------------------------------------------
+
+
+def test_cache_user_sets_user_cache_path(mocker) -> None:
+    """cache='user' resolves to the platform user cache directory."""
+    captured, _ = _capture_task(mocker, get_entry_return=None)
+
+    @track(learn=True, cache="user")
+    def my_func() -> None:
+        pass
+
+    my_func()
+
+    assert captured[0].cache_path is not None
+    assert "timeo" in str(captured[0].cache_path)
+
+
+def test_cache_project_sets_project_cache_path(mocker, tmp_path, monkeypatch) -> None:
+    """cache='project' resolves to .timeo/timings.json in the cwd."""
+    monkeypatch.chdir(tmp_path)
+    captured, _ = _capture_task(mocker, get_entry_return=None)
+
+    @track(learn=True, cache="project")
+    def my_func() -> None:
+        pass
+
+    my_func()
+
+    assert captured[0].cache_path == tmp_path / ".timeo" / "timings.json"
+
+
+def test_cache_invalid_raises_at_decoration_time(mocker) -> None:
+    """An invalid cache= value raises ValueError when the decorator is applied."""
+    mocker.patch("timeo.decorator.ProgressManager")
+
+    with pytest.raises(ValueError, match="Invalid cache location"):
+
+        @track(learn=True, cache="bogus")
+        def my_func() -> None:
+            pass

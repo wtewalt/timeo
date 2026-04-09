@@ -10,7 +10,7 @@ from collections.abc import Generator, Iterable, Sized
 from contextvars import ContextVar
 from typing import Any, Callable, TypeVar
 
-from timeo.cache import get_entry, update_entry
+from timeo.cache import get_entry, resolve_cache_path, update_entry
 from timeo.hashing import hash_function
 from timeo.manager import ProgressManager
 from timeo.task import TrackedTask
@@ -46,8 +46,18 @@ def _infer_total(*args: Any, **kwargs: Any) -> int | None:
 # ---------------------------------------------------------------------------
 
 
-def track(fn: F | None = None, *, learn: bool = False) -> Any:
+def track(fn: F | None = None, *, learn: bool = False, cache: str = "user") -> Any:
     """Decorator that wraps a function with a live terminal progress bar.
+
+    Args:
+        learn: If ``True``, the bar is driven by an EMA of previous runtimes
+               instead of discrete steps. Timing data is stored in a local
+               cache and updated after every run.
+        cache: Where to store timing data when ``learn=True``.
+               ``"user"`` (default) stores in the platform user cache directory
+               (e.g. ``~/.cache/timeo/timings.json``).
+               ``"project"`` stores in ``.timeo/timings.json`` relative to the
+               current working directory.
 
     Usage::
 
@@ -59,29 +69,37 @@ def track(fn: F | None = None, *, learn: bool = False) -> Any:
         @timeo.track(learn=True)
         def run_pipeline(data):
             ...
+
+        @timeo.track(learn=True, cache="project")
+        def run_pipeline(data):
+            ...
     """
 
     def decorator(func: F) -> F:
+        # Resolve the cache path once at decoration time so cwd() is captured
+        # at the point the decorator is applied, not at each call site.
+        resolved_cache_path = resolve_cache_path(cache) if learn else None
+
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if learn:
                 fn_hash = hash_function(func)
-                entry = get_entry(fn_hash)
+                entry = get_entry(fn_hash, cache_path=resolved_cache_path)
                 if entry is None:
-                    # First run — indeterminate bar with learning label.
                     task = TrackedTask(
                         name=f"{func.__name__} (learning...)",
                         total=None,
                         learn=True,
                         ema_duration_seconds=None,
+                        cache_path=resolved_cache_path,
                     )
                 else:
-                    # Subsequent run — time-driven bar using the EMA estimate.
                     task = TrackedTask(
                         name=func.__name__,
                         total=None,
                         learn=True,
                         ema_duration_seconds=entry.ema_duration_seconds,
+                        cache_path=resolved_cache_path,
                     )
             else:
                 total = _infer_total(*args, **kwargs)
@@ -103,7 +121,12 @@ def track(fn: F | None = None, *, learn: bool = False) -> Any:
                 _current_task.reset(token)
                 manager.finish_task(task, elapsed=elapsed)
                 if learn:
-                    update_entry(hash_function(func), func.__qualname__, elapsed)
+                    update_entry(
+                        hash_function(func),
+                        func.__qualname__,
+                        elapsed,
+                        cache_path=task.cache_path,
+                    )
 
         return wrapper  # type: ignore[return-value]
 

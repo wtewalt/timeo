@@ -119,7 +119,22 @@ def run_pipeline(data):
 | Subsequent | Determinate bar filling over the expected duration |
 | After code change | Cache invalidates automatically — learning restarts |
 
-Timing data lives at `~/.cache/timeo/timings.json`. The cache key is a hash of the function's bytecode — not its name — so renaming a function preserves its history, and changing its implementation resets it.
+The cache key is a hash of the function's bytecode — not its name — so renaming a function preserves its history, and changing its implementation resets it.
+
+By default timing data is stored in your platform's user cache directory (e.g. `~/Library/Caches/timeo/timings.json` on macOS). Use `cache="project"` to store it in `.timeo/timings.json` relative to the current directory instead — useful for per-project isolation or sharing timings with a team via version control:
+
+```python
+@timeo.track(learn=True, cache="project")
+def run_pipeline(data):
+    ...
+```
+
+> **Note:** If using `cache="project"`, add `.timeo/` to your `.gitignore` unless you intentionally want to commit timing data.
+
+| `cache=` | Location | Best for |
+|---|---|---|
+| `"user"` (default) | `~/.cache/timeo/timings.json` | Personal scripts, cross-project reuse |
+| `"project"` | `.timeo/timings.json` | Per-project isolation, shared team timings |
 
 ---
 

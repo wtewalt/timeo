@@ -1,9 +1,12 @@
 """
 cache — local timing cache for learn-mode EMA estimates.
 
-Stores per-function timing data at ~/.cache/timeo/timings.json (platform-aware).
 Cache keys are function bytecode hashes — not names — so entries automatically
 invalidate when a function's implementation changes.
+
+Two storage locations are supported:
+- "user"    (default) ~/.cache/timeo/timings.json  — persists across projects
+- "project"           .timeo/timings.json           — scoped to the current project
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from typing import Any
 from platformdirs import user_cache_dir
 
 ALPHA: float = 0.2
+_VALID_LOCATIONS = ("user", "project")
 
 
 # ---------------------------------------------------------------------------
@@ -39,8 +43,29 @@ class TimingEntry:
 # ---------------------------------------------------------------------------
 
 
-def _cache_path() -> Path:
-    return Path(user_cache_dir("timeo")) / "timings.json"
+def resolve_cache_path(location: str = "user") -> Path:
+    """Return the cache file path for the given location.
+
+    Args:
+        location: ``"user"`` (default) stores in the platform user cache
+                  directory. ``"project"`` stores in ``.timeo/timings.json``
+                  relative to the current working directory.
+
+    Raises:
+        ValueError: If *location* is not ``"user"`` or ``"project"``.
+    """
+    if location == "user":
+        return Path(user_cache_dir("timeo")) / "timings.json"
+    if location == "project":
+        return Path.cwd() / ".timeo" / "timings.json"
+    raise ValueError(
+        f"Invalid cache location {location!r}. Choose 'user' or 'project'."
+    )
+
+
+# kept for internal/test use
+def _cache_path(location: str = "user") -> Path:
+    return resolve_cache_path(location)
 
 
 # ---------------------------------------------------------------------------
@@ -66,9 +91,9 @@ def _entry_from_dict(data: dict[str, Any]) -> TimingEntry:
 # ---------------------------------------------------------------------------
 
 
-def load_cache() -> dict[str, TimingEntry]:
+def load_cache(cache_path: Path | None = None) -> dict[str, TimingEntry]:
     """Load the cache from disk. Returns {} on missing or corrupt file."""
-    path = _cache_path()
+    path = cache_path if cache_path is not None else _cache_path()
     if not path.exists():
         return {}
     try:
@@ -78,9 +103,9 @@ def load_cache() -> dict[str, TimingEntry]:
         return {}
 
 
-def save_cache(cache: dict[str, TimingEntry]) -> None:
+def save_cache(cache: dict[str, TimingEntry], cache_path: Path | None = None) -> None:
     """Write the cache to disk atomically (write-then-rename)."""
-    path = _cache_path()
+    path = cache_path if cache_path is not None else _cache_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
     data = {k: _entry_to_dict(v) for k, v in cache.items()}
@@ -93,7 +118,6 @@ def save_cache(cache: dict[str, TimingEntry]) -> None:
             f.write(serialised)
         os.replace(tmp_path, path)
     except Exception:
-        # Clean up the temp file on failure; do not corrupt the existing cache.
         try:
             os.unlink(tmp_path)
         except OSError:
@@ -106,20 +130,24 @@ def save_cache(cache: dict[str, TimingEntry]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_entry(fn_hash: str) -> TimingEntry | None:
+def get_entry(fn_hash: str, cache_path: Path | None = None) -> TimingEntry | None:
     """Return the cache entry for fn_hash, or None if not found."""
-    return load_cache().get(fn_hash)
+    return load_cache(cache_path).get(fn_hash)
 
 
-def update_entry(fn_hash: str, name: str, actual_duration: float) -> None:
+def update_entry(
+    fn_hash: str,
+    name: str,
+    actual_duration: float,
+    cache_path: Path | None = None,
+) -> None:
     """Update (or create) the cache entry for fn_hash using the EMA formula."""
-    cache = load_cache()
+    cache = load_cache(cache_path)
     entry = cache.get(fn_hash)
 
     now = datetime.now(timezone.utc).isoformat()
 
     if entry is None:
-        # First run — seed the EMA directly with the actual duration.
         new_entry = TimingEntry(
             name=name,
             ema_duration_seconds=actual_duration,
@@ -136,4 +164,4 @@ def update_entry(fn_hash: str, name: str, actual_duration: float) -> None:
         )
 
     cache[fn_hash] = new_entry
-    save_cache(cache)
+    save_cache(cache, cache_path)
