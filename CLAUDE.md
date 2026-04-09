@@ -129,7 +129,11 @@ An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using e
 
 ### Local Timing Cache
 
-- Stored at `~/.cache/timeo/timings.json` (use `platformdirs` for cross-platform path resolution).
+- The cache location is user-configurable via the `cache` parameter on `@timeo.track`:
+  - `cache="user"` (default) — stores at the platform user cache dir (e.g. `~/Library/Caches/timeo/timings.json` on macOS). Uses `platformdirs` for cross-platform path resolution.
+  - `cache="project"` — stores at `.timeo/timings.json` relative to `cwd()` at decoration time.
+- The path is resolved once when the decorator is applied (not on each call), so `cwd()` is captured at import/decoration time.
+- An invalid `cache=` value raises `ValueError` at decoration time.
 - Each entry is keyed by a **hash of the function's bytecode** (`dis` or `inspect` + `hashlib`) rather than its name or module path. This ensures the cache automatically invalidates when the function's implementation changes — a refactored or updated function is treated as a new function with no prior data.
 - Cache entry schema:
   ```json
