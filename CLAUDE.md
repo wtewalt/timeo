@@ -62,7 +62,7 @@ Downloading data   ━━━━━━━━━━━━━━━━━━━━�
 This repo uses **[release-please](https://github.com/googleapis/release-please)** to automate versioning and changelog generation. It parses conventional commits on `main` to determine the next version and opens a release PR automatically.
 
 - Merge the release-please PR on `main` to cut a new release.
-- On release, a GitHub Actions workflow automatically builds and publishes the package to **PyPI**.
+- Merging the release PR causes release-please to push a `v*` git tag (e.g. `v1.2.0`). The `publish.yml` workflow triggers on this tag push and automatically builds and publishes the package to **PyPI**.
 - The version in `pyproject.toml` is the source of truth and is updated by release-please.
 
 ### Conventional Commits
@@ -95,9 +95,10 @@ pre-commit install
 ```
 
 Hooks enforced:
-- **ruff** — linting and formatting
-- **mypy** — static type checking
-- TOML/YAML validation
+- **black** — Python code formatting
+- **check-yaml** — validates YAML files
+- **end-of-file-fixer** — ensures all files end with a newline
+- **trailing-whitespace** — removes trailing whitespace
 
 Run manually against all files:
 ```bash
@@ -111,7 +112,10 @@ timeo/
 ├── __init__.py       # public API
 ├── decorator.py      # @timeo.track implementation
 ├── manager.py        # ProgressManager, rich.Progress integration
-└── task.py           # TrackedTask dataclass/model
+├── task.py           # TrackedTask dataclass/model
+├── cache.py          # timing cache I/O, EMA logic, resolve_cache_path()
+├── hashing.py        # function bytecode hashing for cache keys
+└── py.typed          # PEP 561 marker — package ships inline types
 ```
 
 ## Timing-Based Progress Estimation
@@ -132,9 +136,9 @@ An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using e
 - The cache location is user-configurable via the `cache` parameter on `@timeo.track`:
   - `cache="user"` (default) — stores at the platform user cache dir (e.g. `~/Library/Caches/timeo/timings.json` on macOS). Uses `platformdirs` for cross-platform path resolution.
   - `cache="project"` — stores at `.timeo/timings.json` relative to `cwd()` at decoration time.
-- The path is resolved once when the decorator is applied (not on each call), so `cwd()` is captured at import/decoration time.
+- The path is resolved once at decoration time via `resolve_cache_path()` (public API in `timeo/cache.py`), so `cwd()` is captured when the decorator is applied, not on each call.
 - An invalid `cache=` value raises `ValueError` at decoration time.
-- Each entry is keyed by a **hash of the function's bytecode** (`dis` or `inspect` + `hashlib`) rather than its name or module path. This ensures the cache automatically invalidates when the function's implementation changes — a refactored or updated function is treated as a new function with no prior data.
+- Each entry is keyed by a **hash of the function's bytecode** (via `marshal` + `hashlib` in `timeo/hashing.py`) rather than its name or module path. This ensures the cache automatically invalidates when the function's implementation changes — a refactored or updated function is treated as a new function with no prior data.
 - Cache entry schema:
   ```json
   {
