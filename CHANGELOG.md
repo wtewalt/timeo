@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/wtewalt/timeo/compare/v0.2.1...v0.3.0) (2026-04-09)
+
+
+### Features
+
+* add configurable cache location to [@timeo](https://github.com/timeo).track ([4c0f0d2](https://github.com/wtewalt/timeo/commit/4c0f0d2be1fcae81c1095315e3b5842be951e3a7))
+* add configurable cache location to [@timeo](https://github.com/timeo).track ([679a9eb](https://github.com/wtewalt/timeo/commit/679a9eb654b18c22df0ca2613dd881cbad95a24e))
+
 ## [0.2.1](https://github.com/wtewalt/timeo/compare/v0.2.0...v0.2.1) (2026-04-09)
 
 
