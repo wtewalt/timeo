@@ -150,29 +150,6 @@ The display is built on [`rich.progress`](https://rich.readthedocs.io/en/stable/
 
 ---
 
-## Contributing
-
-```bash
-# Enter the nix development shell
-nix develop
-
-# Install dependencies
-uv sync
-
-# Install pre-commit hooks (one-time)
-pre-commit install
-
-# Run tests
-pytest
-
-# Run linting and formatting
-pre-commit run --all-files
-```
-
-All commits must follow [Conventional Commits](https://www.conventionalcommits.org/). See [`CONVENTIONS.md`](CONVENTIONS.md) for full guidelines.
-
----
-
 <div align="center">
   <sub>Built with <a href="https://github.com/Textualize/rich">rich</a> · MIT License</sub>
 </div>
