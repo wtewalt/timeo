@@ -188,13 +188,32 @@ def test_decaying_alpha_floors_at_alpha_after_run5(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_drift_detection_no_reset_during_warmup(tmp_path: Path) -> None:
+    """Drift is never triggered during the first DRIFT_WINDOW+1 warm-up runs.
+
+    Without this guard, naturally ascending early values (1s, 2s, 3s) would
+    produce avg_recent > EMA and incorrectly reset the entry before it has
+    had a chance to converge.
+    """
+    cache_file = tmp_path / "timings.json"
+    # Three ascending values — would trigger drift without the warm-up guard.
+    update_entry("h", "f", 1.0, cache_path=cache_file)
+    update_entry("h", "f", 2.0, cache_path=cache_file)
+    update_entry("h", "f", 3.0, cache_path=cache_file)
+    entry = get_entry("h", cache_path=cache_file)
+    assert entry is not None
+    assert entry.run_count == 3  # no spurious reset
+
+
 def test_drift_detection_resets_on_sustained_change(tmp_path: Path) -> None:
     """DRIFT_WINDOW consecutive runs ~50% above EMA should trigger a reset.
 
-    The math: after 8 stable runs at 10s the EMA converges to 10s.  With
-    new_duration=15s the avg_recent only exceeds DRIFT_THRESHOLD once all
-    DRIFT_WINDOW slots are filled with the new value (the EMA adjusts slowly
-    via alpha=0.2 so it still lags by >25% on run DRIFT_WINDOW).
+    Drift detection only activates after entry.run_count > DRIFT_WINDOW, so
+    the EMA has had a chance to converge before comparisons begin.  After 8
+    stable runs at 10s the EMA converges to 10s.  With new_duration=15s the
+    avg_recent only exceeds DRIFT_THRESHOLD once all DRIFT_WINDOW slots are
+    filled with the new value (the EMA adjusts slowly via alpha=0.2 so it
+    still lags by >25% on run DRIFT_WINDOW).
     """
     cache_file = tmp_path / "timings.json"
     # Converge EMA to 10s.

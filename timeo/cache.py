@@ -239,8 +239,16 @@ def update_entry(
         recent = (entry.recent_durations + [actual_duration])[-DRIFT_WINDOW:]
 
         # --- Approach C: drift detection ---
-        # Only check once we have a full window of observations.
-        if len(recent) >= DRIFT_WINDOW and entry.ema_duration_seconds > 0:
+        # Only check once the EMA has had more runs than the window size to
+        # stabilise.  Requiring entry.run_count > DRIFT_WINDOW means the first
+        # DRIFT_WINDOW+1 runs are always treated as warm-up, which prevents
+        # naturally-varying early data (e.g. 1s, 2s, 3s) from triggering a
+        # spurious reset before the estimate has had a chance to converge.
+        if (
+            entry.run_count > DRIFT_WINDOW
+            and len(recent) >= DRIFT_WINDOW
+            and entry.ema_duration_seconds > 0
+        ):
             avg_recent = sum(recent) / len(recent)
             deviation = (
                 abs(avg_recent - entry.ema_duration_seconds)
