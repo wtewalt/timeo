@@ -46,7 +46,13 @@ def _infer_total(*args: Any, **kwargs: Any) -> int | None:
 # ---------------------------------------------------------------------------
 
 
-def track(fn: F | None = None, *, learn: bool = False, cache: str = "user") -> Any:
+def track(
+    fn: F | None = None,
+    *,
+    learn: bool = False,
+    cache: str = "user",
+    depends_on: list[Callable[..., Any]] | None = None,
+) -> Any:
     """Decorator that wraps a function with a live terminal progress bar.
 
     Args:
@@ -58,6 +64,18 @@ def track(fn: F | None = None, *, learn: bool = False, cache: str = "user") -> A
                (e.g. ``~/.cache/timeo/timings.json``).
                ``"project"`` stores in ``.timeo/timings.json`` relative to the
                current working directory.
+        depends_on: Optional list of callables that this function's timing
+               estimate depends on.  When any listed function's bytecode
+               changes, the cache key for this function changes too and
+               learn-mode resets automatically.  Use this to handle cases
+               where a nested/helper function changes without the decorated
+               function's own bytecode changing::
+
+                   @timeo.track(learn=True, depends_on=[helper_fn])
+                   def top_function():
+                       helper_fn()
+
+               Only meaningful when ``learn=True``; ignored otherwise.
 
     Usage::
 
@@ -73,6 +91,10 @@ def track(fn: F | None = None, *, learn: bool = False, cache: str = "user") -> A
         @timeo.track(learn=True, cache="project")
         def run_pipeline(data):
             ...
+
+        @timeo.track(learn=True, depends_on=[helper_fn])
+        def top_function():
+            helper_fn()
     """
 
     def decorator(func: F) -> F:
@@ -80,11 +102,13 @@ def track(fn: F | None = None, *, learn: bool = False, cache: str = "user") -> A
         # at the point the decorator is applied, not at each call site.
         resolved_cache_path = resolve_cache_path(cache) if learn else None
 
+        # Pre-compute the cache key once — depends_on is fixed at decoration time.
+        fn_hash = hash_function(func, depends_on=depends_on) if learn else None
+
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if learn:
-                fn_hash = hash_function(func)
-                entry = get_entry(fn_hash, cache_path=resolved_cache_path)
+                entry = get_entry(fn_hash, cache_path=resolved_cache_path)  # type: ignore[arg-type]
                 if entry is None:
                     task = TrackedTask(
                         name=f"{func.__name__} (learning...)",
@@ -122,7 +146,7 @@ def track(fn: F | None = None, *, learn: bool = False, cache: str = "user") -> A
                 manager.finish_task(task, elapsed=elapsed)
                 if learn:
                     update_entry(
-                        hash_function(func),
+                        fn_hash,  # type: ignore[arg-type]
                         func.__qualname__,
                         elapsed,
                         cache_path=task.cache_path,
