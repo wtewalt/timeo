@@ -179,8 +179,8 @@ Entries: 2
 ### Reset the cache
 
 ```bash
-timeo cache reset                  # user cache (default)
-timeo cache reset --cache project  # project cache
+timeo cache reset                  # delete entire user cache (default)
+timeo cache reset --cache project  # delete entire project cache
 ```
 
 You will be prompted to confirm. Pass `--yes` to skip the prompt:
@@ -188,6 +188,15 @@ You will be prompted to confirm. Pass `--yes` to skip the prompt:
 ```bash
 timeo cache reset --yes
 ```
+
+To remove only entries last updated before a specific date, use `--before`:
+
+```bash
+timeo cache reset --before 2025-01-01        # remove entries older than Jan 1 2025
+timeo cache reset --before 2025-01-01 --yes  # skip confirmation
+```
+
+This leaves newer entries intact — useful for pruning stale data without losing recent timing history.
 
 ---
 

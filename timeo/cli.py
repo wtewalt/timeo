@@ -2,20 +2,21 @@
 cli — command-line interface for inspecting and managing the timeo cache.
 
 Usage:
-    timeo cache info [--cache user|project]
-    timeo cache reset [--cache user|project]
+    timeo cache info   [--cache user|project]
+    timeo cache reset  [--cache user|project] [--before YYYY-MM-DD] [--yes]
 """
 
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 
 import click
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
-from timeo.cache import load_cache, resolve_cache_path
+from timeo.cache import load_cache, prune_entries_before, resolve_cache_path
 
 console = Console()
 
@@ -71,12 +72,12 @@ def cache_info(cache: str) -> None:
     table.add_column("Runs", justify="right", style="cyan")
     table.add_column("Last Updated", style="dim")
 
-    for fn_hash, entry in sorted(entries.items(), key=lambda x: x[1].name):
+    for _fn_hash, entry in sorted(entries.items(), key=lambda x: x[1].name):
         table.add_row(
             entry.name,
             f"{entry.ema_duration_seconds:.2f}s",
             str(entry.run_count),
-            entry.last_updated[:19].replace("T", " "),  # trim to YYYY-MM-DD HH:MM:SS
+            entry.last_updated[:19].replace("T", " "),
         )
 
     console.print(table)
@@ -85,17 +86,40 @@ def cache_info(cache: str) -> None:
 
 @cache.command("reset")
 @_CACHE_OPTION
-@click.confirmation_option(
-    "--yes",
-    prompt="This will delete all cached timing data. Are you sure?",
+@click.option(
+    "--before",
+    default=None,
+    metavar="YYYY-MM-DD",
+    help="Only remove entries last updated before this date.",
 )
-def cache_reset(cache: str) -> None:
-    """Delete all cached timing data."""
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Skip the confirmation prompt.",
+)
+def cache_reset(cache: str, before: str | None, yes: bool) -> None:
+    """Delete cached timing data.
+
+    Without --before, the entire cache is deleted.
+    With --before YYYY-MM-DD, only entries older than that date are removed.
+    """
     try:
         path = resolve_cache_path(cache)
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
+
+    # Parse --before date if provided.
+    cutoff: datetime | None = None
+    if before is not None:
+        try:
+            cutoff = datetime.strptime(before, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            console.print(
+                f"[red]Error:[/red] Invalid date {before!r}. Use YYYY-MM-DD format."
+            )
+            sys.exit(1)
 
     if not path.exists():
         console.print(
@@ -103,5 +127,29 @@ def cache_reset(cache: str) -> None:
         )
         return
 
-    path.unlink()
-    console.print(f"[green]✓[/green] Cache reset: {path}\n")
+    # Build confirmation prompt.
+    if cutoff is not None:
+        prompt_msg = (
+            f"Remove all entries last updated before {before}? "
+            f"This cannot be undone."
+        )
+    else:
+        prompt_msg = "This will delete all cached timing data. Are you sure?"
+
+    if not yes:
+        click.confirm(prompt_msg, abort=True)
+
+    # Perform the operation.
+    if cutoff is not None:
+        removed, remaining = prune_entries_before(cutoff, cache_path=path)
+        if removed == 0:
+            console.print(f"[yellow]No entries found before {before}.[/yellow]\n")
+        else:
+            console.print(
+                f"[green]✓[/green] Removed [bold]{removed}[/bold] "
+                f"entr{'y' if removed == 1 else 'ies'} "
+                f"({remaining} remaining).\n"
+            )
+    else:
+        path.unlink()
+        console.print(f"[green]✓[/green] Cache reset: {path}\n")
