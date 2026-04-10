@@ -135,6 +135,42 @@ def get_entry(fn_hash: str, cache_path: Path | None = None) -> TimingEntry | Non
     return load_cache(cache_path).get(fn_hash)
 
 
+def prune_entries_before(
+    cutoff: datetime, cache_path: Path | None = None
+) -> tuple[int, int]:
+    """Remove all entries last updated before *cutoff*.
+
+    Returns a ``(removed, remaining)`` tuple.
+    """
+    cache = load_cache(cache_path)
+    before: dict[str, TimingEntry] = {}
+    after: dict[str, TimingEntry] = {}
+
+    for fn_hash, entry in cache.items():
+        try:
+            updated = datetime.fromisoformat(entry.last_updated)
+            # Ensure both datetimes are comparable (make cutoff timezone-aware
+            # if the stored timestamp is, and vice-versa).
+            if updated.tzinfo is None and cutoff.tzinfo is not None:
+                updated = updated.replace(tzinfo=timezone.utc)
+            elif updated.tzinfo is not None and cutoff.tzinfo is None:
+                cutoff = cutoff.replace(tzinfo=timezone.utc)
+        except ValueError:
+            # Unparseable timestamp — treat as old and remove it.
+            before[fn_hash] = entry
+            continue
+
+        if updated < cutoff:
+            before[fn_hash] = entry
+        else:
+            after[fn_hash] = entry
+
+    if before:
+        save_cache(after, cache_path)
+
+    return len(before), len(after)
+
+
 def update_entry(
     fn_hash: str,
     name: str,

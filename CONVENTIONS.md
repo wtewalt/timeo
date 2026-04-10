@@ -148,6 +148,20 @@ pre-commit run black --all-files
 - Do not write tests that render to the terminal or write to `~/.cache/timeo/` — mock `ProgressManager` and patch `timeo.cache._cache_path` in tests that touch the cache.
 - Aim for >80% coverage on all modules.
 
+### Manual cache inspection during development
+
+Use the `timeo` CLI to inspect or clear cache state while developing or debugging learn-mode behaviour:
+
+```bash
+timeo cache info                   # inspect entries in the user cache
+timeo cache info --cache project   # inspect the project-local cache
+timeo cache reset --yes            # clear the user cache
+timeo cache reset --cache project --yes  # clear the project-local cache
+timeo cache reset --before YYYY-MM-DD --yes  # prune entries older than a date
+```
+
+This is especially useful when writing or troubleshooting tests that depend on cached timing data.
+
 ---
 
 ## Releasing

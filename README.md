@@ -151,6 +151,55 @@ with timeo.live():
 
 ---
 
+## CLI
+
+`timeo` ships a command-line tool for inspecting and managing the learn-mode cache.
+
+### View cache contents
+
+```bash
+timeo cache info                  # user cache (default)
+timeo cache info --cache project  # project cache
+```
+
+Output:
+
+```
+Cache location: /Users/you/Library/Caches/timeo/timings.json
+Entries: 2
+
+╭─────────────────────┬──────────────┬──────┬─────────────────────╮
+│ Function            │ EMA Duration │ Runs │ Last Updated        │
+├─────────────────────┼──────────────┼──────┼─────────────────────┤
+│ module.run_pipeline │       12.40s │    7 │ 2026-04-10 09:21:00 │
+│ module.process_data │        3.20s │    3 │ 2026-04-09 14:05:12 │
+╰─────────────────────┴──────────────┴──────┴─────────────────────╯
+```
+
+### Reset the cache
+
+```bash
+timeo cache reset                  # delete entire user cache (default)
+timeo cache reset --cache project  # delete entire project cache
+```
+
+You will be prompted to confirm. Pass `--yes` to skip the prompt:
+
+```bash
+timeo cache reset --yes
+```
+
+To remove only entries last updated before a specific date, use `--before`:
+
+```bash
+timeo cache reset --before 2025-01-01        # remove entries older than Jan 1 2025
+timeo cache reset --before 2025-01-01 --yes  # skip confirmation
+```
+
+This leaves newer entries intact — useful for pruning stale data without losing recent timing history.
+
+---
+
 ## How it works
 
 | Piece | Role |
