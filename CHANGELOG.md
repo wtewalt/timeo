@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/wtewalt/timeo/compare/v0.5.0...v0.5.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* guard drift detection behind DRIFT_WINDOW warm-up run requirement ([5763ec1](https://github.com/wtewalt/timeo/commit/5763ec18556519f57f1265624c79fc3f7e5d846b))
+* use moderate test value to avoid triggering drift in alpha floor test ([aff0127](https://github.com/wtewalt/timeo/commit/aff012748190a6539b24ac79cd805d216fe4bf91))
+
 ## [0.5.0](https://github.com/wtewalt/timeo/compare/v0.4.0...v0.5.0) (2026-04-10)
 
 
