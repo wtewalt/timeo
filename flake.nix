@@ -59,7 +59,7 @@
         # Frozen virtualenv for packages.default / apps.default
         timeoEnv = pythonSet.mkVirtualEnv "timeo-env" workspace.deps.default;
 
-                # Editable overlay — senzu itself is installed as an editable package
+                # Editable overlay — timeo itself is installed as an editable package
         # REPO_ROOT must be set in the shell before this is evaluated
         editableOverlay = workspace.mkEditablePyprojectOverlay {
           root = "$REPO_ROOT";
@@ -70,7 +70,7 @@
             # Hatchling needs the `editables` package at build time for editable
             # installs. uv doesn't lock build-system deps so we wire it in here.
             (final: prev: {
-              senzu = prev.senzu.overrideAttrs (old: {
+              timeo = prev.timeo.overrideAttrs (old: {
                 nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
                   final.editables
                 ];
@@ -119,7 +119,7 @@
 
         apps.default = {
           type = "app";
-          program = "${timeoEnv}/bin/senzu";
+          program = "${timeoEnv}/bin/timeo";
         };
 
         # The main development shell
