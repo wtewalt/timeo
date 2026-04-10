@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/wtewalt/timeo/compare/v0.4.0...v0.5.0) (2026-04-10)
+
+
+### Features
+
+* improve learn-mode timing accuracy with decaying alpha, drift detection, and depends_on ([10d8fda](https://github.com/wtewalt/timeo/commit/10d8fda2ffb366933609307f51fe2602a0154a65))
+
+
+### Documentation
+
+* add GitHub repository badge to README header ([ff50b2f](https://github.com/wtewalt/timeo/commit/ff50b2feca03df7ed024dcab866c808f571ceeb2))
+* document decaying alpha, drift detection, and depends_on in README and CLAUDE.md ([593343e](https://github.com/wtewalt/timeo/commit/593343e7973095ffa39453a9ff5c53cc70d60bd7))
+
 ## [0.4.0](https://github.com/wtewalt/timeo/compare/v0.3.0...v0.4.0) (2026-04-10)
 
 
