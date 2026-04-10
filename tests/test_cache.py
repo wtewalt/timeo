@@ -8,10 +8,13 @@ import pytest
 
 from timeo.cache import (
     ALPHA,
+    DRIFT_THRESHOLD,
+    DRIFT_WINDOW,
     TimingEntry,
     get_entry,
     load_cache,
     resolve_cache_path,
+    save_cache,
     update_entry,
 )
 
@@ -39,6 +42,24 @@ def test_load_cache_returns_empty_on_corrupt_file(tmp_path: Path) -> None:
         assert load_cache() == {}
 
 
+def test_load_cache_backward_compat_no_recent_durations(tmp_path: Path) -> None:
+    """Cache files written before recent_durations was added should load cleanly."""
+    cache_file = tmp_path / "timings.json"
+    old_format = {
+        "abc123": {
+            "name": "my_func",
+            "ema_duration_seconds": 5.0,
+            "run_count": 3,
+            "last_updated": "2024-01-01T00:00:00+00:00",
+            # no recent_durations key
+        }
+    }
+    cache_file.write_text(json.dumps(old_format), encoding="utf-8")
+    result = load_cache(cache_path=cache_file)
+    assert "abc123" in result
+    assert result["abc123"].recent_durations == []
+
+
 # ---------------------------------------------------------------------------
 # get_entry
 # ---------------------------------------------------------------------------
@@ -50,7 +71,7 @@ def test_get_entry_returns_none_when_missing(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# update_entry
+# update_entry — basic behaviour
 # ---------------------------------------------------------------------------
 
 
@@ -70,14 +91,12 @@ def test_update_entry_seeds_ema_on_first_run(tmp_path: Path) -> None:
     assert entry.run_count == 1
 
 
-def test_update_entry_applies_ema(tmp_path: Path) -> None:
+def test_update_entry_seeds_recent_durations_on_first_run(tmp_path: Path) -> None:
     with _patch_cache_path(tmp_path):
-        update_entry("abc123", "my_func", 10.0)  # seed: ema = 10.0
-        update_entry("abc123", "my_func", 5.0)  # ema = 0.2*5 + 0.8*10 = 9.0
+        update_entry("abc123", "my_func", 5.0)
         entry = get_entry("abc123")
     assert entry is not None
-    expected = ALPHA * 5.0 + (1 - ALPHA) * 10.0
-    assert entry.ema_duration_seconds == pytest.approx(expected)
+    assert entry.recent_durations == [5.0]
 
 
 def test_update_entry_increments_run_count(tmp_path: Path) -> None:
@@ -116,6 +135,118 @@ def test_cache_file_is_valid_json_after_write(tmp_path: Path) -> None:
         update_entry("abc123", "my_func", 4.0)
     raw = json.loads(cache_file.read_text(encoding="utf-8"))
     assert "abc123" in raw
+
+
+# ---------------------------------------------------------------------------
+# Approach D — decaying alpha
+# ---------------------------------------------------------------------------
+
+
+def test_decaying_alpha_run2_uses_half_weight(tmp_path: Path) -> None:
+    """On the second run new_run_count=2 so alpha=max(0.2, 0.5)=0.5."""
+    cache_file = tmp_path / "timings.json"
+    update_entry("abc123", "my_func", 10.0, cache_path=cache_file)  # seed
+    update_entry("abc123", "my_func", 0.0, cache_path=cache_file)  # run 2
+    entry = get_entry("abc123", cache_path=cache_file)
+    assert entry is not None
+    # alpha=0.5 → ema = 0.5*0.0 + 0.5*10.0 = 5.0
+    assert entry.ema_duration_seconds == pytest.approx(5.0)
+
+
+def test_decaying_alpha_run3(tmp_path: Path) -> None:
+    """On run 3 alpha=max(0.2, 1/3)≈0.333."""
+    cache_file = tmp_path / "timings.json"
+    update_entry("h", "f", 10.0, cache_path=cache_file)  # run 1: ema=10
+    update_entry(
+        "h", "f", 10.0, cache_path=cache_file
+    )  # run 2: ema stays 10 (same value)
+    update_entry("h", "f", 4.0, cache_path=cache_file)  # run 3: alpha≈0.333
+    entry = get_entry("h", cache_path=cache_file)
+    assert entry is not None
+    # alpha = max(0.2, 1/3) = 1/3
+    expected = (1 / 3) * 4.0 + (2 / 3) * 10.0
+    assert entry.ema_duration_seconds == pytest.approx(expected, rel=1e-3)
+
+
+def test_decaying_alpha_floors_at_alpha_after_run5(tmp_path: Path) -> None:
+    """After run 5, alpha floors at ALPHA=0.2 and no longer decays."""
+    cache_file = tmp_path / "timings.json"
+    for _ in range(5):
+        update_entry("h", "f", 10.0, cache_path=cache_file)
+    # At run 6, new_run_count=6 → 1/6 < 0.2, so floor kicks in.
+    update_entry("h", "f", 0.0, cache_path=cache_file)
+    entry = get_entry("h", cache_path=cache_file)
+    assert entry is not None
+    # If floor is working, alpha == ALPHA == 0.2
+    # ema before last run was ~10.0 (all previous values were 10.0)
+    expected = ALPHA * 0.0 + (1 - ALPHA) * 10.0
+    assert entry.ema_duration_seconds == pytest.approx(expected, rel=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# Approach C — drift detection
+# ---------------------------------------------------------------------------
+
+
+def test_drift_detection_resets_on_sustained_change(tmp_path: Path) -> None:
+    """DRIFT_WINDOW consecutive runs ~50% above EMA should trigger a reset.
+
+    The math: after 8 stable runs at 10s the EMA converges to 10s.  With
+    new_duration=15s the avg_recent only exceeds DRIFT_THRESHOLD once all
+    DRIFT_WINDOW slots are filled with the new value (the EMA adjusts slowly
+    via alpha=0.2 so it still lags by >25% on run DRIFT_WINDOW).
+    """
+    cache_file = tmp_path / "timings.json"
+    # Converge EMA to 10s.
+    for _ in range(8):
+        update_entry("h", "f", 10.0, cache_path=cache_file)
+
+    entry_before = get_entry("h", cache_path=cache_file)
+    assert entry_before is not None
+    assert entry_before.ema_duration_seconds == pytest.approx(10.0, rel=0.05)
+
+    # 15s is ~50% above 10s.  Tracing the math:
+    #   run N+1: recent=[10,10,15], avg=11.67, ema=10  → dev=0.167 < 0.25, no reset
+    #   run N+2: recent=[10,15,15], avg=13.33, ema=11  → dev=0.212 < 0.25, no reset
+    #   run N+3: recent=[15,15,15], avg=15,   ema=11.8 → dev=0.271 > 0.25, RESET ✓
+    new_duration = 15.0
+    for _ in range(DRIFT_WINDOW):
+        update_entry("h", "f", new_duration, cache_path=cache_file)
+
+    entry_after = get_entry("h", cache_path=cache_file)
+    assert entry_after is not None
+    # After a drift reset, run_count should be back to 1.
+    assert entry_after.run_count == 1
+    assert entry_after.ema_duration_seconds == pytest.approx(new_duration)
+
+
+def test_drift_detection_no_reset_on_mild_variation(tmp_path: Path) -> None:
+    """Mild variation (~20% above EMA) never triggers a drift reset."""
+    cache_file = tmp_path / "timings.json"
+    for _ in range(8):
+        update_entry("h", "f", 10.0, cache_path=cache_file)
+
+    run_count_before = get_entry("h", cache_path=cache_file).run_count  # type: ignore[union-attr]
+
+    # 12s is 20% above 10s — well below DRIFT_THRESHOLD=0.25 once averaged
+    # over the window, so drift should never trigger.
+    for _ in range(DRIFT_WINDOW + 3):
+        update_entry("h", "f", 12.0, cache_path=cache_file)
+
+    entry = get_entry("h", cache_path=cache_file)
+    assert entry is not None
+    # run_count should have continued incrementing, not reset to 1.
+    assert entry.run_count > run_count_before
+
+
+def test_drift_detection_stores_recent_durations(tmp_path: Path) -> None:
+    """recent_durations window should not exceed DRIFT_WINDOW entries."""
+    cache_file = tmp_path / "timings.json"
+    for i in range(DRIFT_WINDOW + 3):
+        update_entry("h", "f", float(i), cache_path=cache_file)
+    entry = get_entry("h", cache_path=cache_file)
+    assert entry is not None
+    assert len(entry.recent_durations) <= DRIFT_WINDOW
 
 
 # ---------------------------------------------------------------------------
@@ -166,3 +297,23 @@ def test_load_cache_uses_supplied_cache_path(tmp_path: Path) -> None:
     update_entry("abc123", "my_func", 2.0, cache_path=cache_file)
     result = load_cache(cache_path=cache_file)
     assert "abc123" in result
+
+
+# ---------------------------------------------------------------------------
+# Approach B — depends_on (integration with hashing; full decorator tests
+# live in test_hashing.py and test_decorator.py)
+# ---------------------------------------------------------------------------
+
+
+def test_cache_key_differs_with_different_deps(tmp_path: Path) -> None:
+    """Two separate cache keys (from different dep hashes) are independent."""
+    cache_file = tmp_path / "timings.json"
+    update_entry("hash_nodep", "f", 5.0, cache_path=cache_file)
+    update_entry("hash_withdep", "f", 99.0, cache_path=cache_file)
+
+    entry_nodep = get_entry("hash_nodep", cache_path=cache_file)
+    entry_dep = get_entry("hash_withdep", cache_path=cache_file)
+
+    assert entry_nodep is not None
+    assert entry_dep is not None
+    assert entry_nodep.ema_duration_seconds != entry_dep.ema_duration_seconds

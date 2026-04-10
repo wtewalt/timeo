@@ -122,6 +122,23 @@ def run_pipeline(data):
 
 The cache key is a hash of the function's bytecode — not its name — so renaming a function preserves its history, and changing its implementation resets it.
 
+#### Estimate accuracy
+
+timeo uses several strategies to keep timing estimates accurate over time:
+
+**Decaying alpha** — Early runs use a higher smoothing factor so the estimate converges quickly from a cold start (`alpha = max(0.2, 1 / run_count)`), giving a true running average for the first few runs before settling at the steady-state weight.
+
+**Drift detection** — If the last 3 actual runtimes collectively deviate from the stored estimate by more than 25%, the entry resets automatically and learning restarts. This handles cases where a function you call internally changed — even if your decorated function's own code didn't.
+
+**Explicit dependencies** — For finer control, declare which helper functions affect your runtime with `depends_on`. If any listed function's bytecode changes, the cache key changes and learning restarts:
+
+```python
+@timeo.track(learn=True, depends_on=[helper_fn, another_fn])
+def run_pipeline(data):
+    helper_fn(data)
+    another_fn(data)
+```
+
 By default timing data is stored in your platform's user cache directory (e.g. `~/Library/Caches/timeo/timings.json` on macOS). Use `cache="project"` to store it in `.timeo/timings.json` relative to the current directory instead — useful for per-project isolation or sharing timings with a team via version control:
 
 ```python

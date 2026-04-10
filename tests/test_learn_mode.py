@@ -176,3 +176,80 @@ def test_cache_invalid_raises_at_decoration_time(mocker) -> None:
         @track(learn=True, cache="bogus")
         def my_func() -> None:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Approach B — depends_on parameter
+# ---------------------------------------------------------------------------
+
+
+def test_depends_on_uses_combined_hash(mocker, tmp_path) -> None:
+    """When depends_on is provided, the cache key includes the dependency hash."""
+    mocker.patch("timeo.decorator.ProgressManager")
+    cache_file = tmp_path / "timings.json"
+
+    def helper() -> int:
+        return 1
+
+    @track(learn=True, depends_on=[helper])
+    def top_func() -> None:
+        pass
+
+    mocker.patch("timeo.decorator.get_entry", return_value=None)
+    mock_update = mocker.patch("timeo.decorator.update_entry")
+
+    top_func()
+
+    # update_entry should have been called; capture the hash used.
+    mock_update.assert_called_once()
+    fn_hash_used = mock_update.call_args[0][0]
+
+    # Now compute what the hash should be without depends_on.
+    from timeo.hashing import hash_function
+
+    hash_without_dep = hash_function(top_func.__wrapped__)  # type: ignore[attr-defined]
+    hash_with_dep = hash_function(top_func.__wrapped__, depends_on=[helper])  # type: ignore[attr-defined]
+
+    assert fn_hash_used == hash_with_dep
+    assert fn_hash_used != hash_without_dep
+
+
+def test_depends_on_invalidates_cache_when_dep_changes(tmp_path: Path) -> None:
+    """Changing a depends_on function changes the key, triggering relearning."""
+    from timeo.hashing import hash_function
+
+    def dep_v1() -> int:
+        return 1
+
+    def dep_v2() -> int:
+        return 2  # implementation changed
+
+    def top() -> None:
+        pass
+
+    hash_v1 = hash_function(top, depends_on=[dep_v1])
+    hash_v2 = hash_function(top, depends_on=[dep_v2])
+
+    cache_file = tmp_path / "timings.json"
+    from timeo.cache import get_entry, update_entry
+
+    # Seed the cache under v1's key.
+    update_entry(hash_v1, "top", 5.0, cache_path=cache_file)
+    assert get_entry(hash_v1, cache_path=cache_file) is not None
+
+    # v2's key is absent — learn-mode would restart.
+    assert get_entry(hash_v2, cache_path=cache_file) is None
+
+
+def test_depends_on_ignored_when_learn_false(mocker) -> None:
+    """depends_on has no effect when learn=False (no hashing occurs)."""
+    mocker.patch("timeo.decorator.ProgressManager")
+
+    def helper() -> int:
+        return 1
+
+    @track(learn=False, depends_on=[helper])
+    def my_func() -> str:
+        return "ok"
+
+    assert my_func() == "ok"

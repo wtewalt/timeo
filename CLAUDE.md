@@ -150,11 +150,13 @@ An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using e
       "name": "my_module.process_files",
       "ema_duration_seconds": 12.4,
       "run_count": 7,
-      "last_updated": "2026-04-08T00:00:00Z"
+      "last_updated": "2026-04-08T00:00:00Z",
+      "recent_durations": [11.8, 12.1, 12.9]
     }
   }
   ```
 - `name` is stored for human readability/debugging only — it is never used as a lookup key.
+- `recent_durations` stores the last `DRIFT_WINDOW` actual runtimes and is used for drift detection (see below). Entries written before this field was added load cleanly with an empty list.
 
 ### EMA Strategy
 
@@ -162,7 +164,11 @@ An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using e
   ```
   ema = alpha * actual_duration + (1 - alpha) * previous_ema
   ```
-- Suggested default `alpha = 0.2` (weights recent runs moderately; can be tuned).
+- **Decaying alpha**: instead of a fixed `alpha = 0.2`, the smoothing factor decays from run 1 toward the floor:
+  ```
+  alpha = max(0.2, 1 / new_run_count)
+  ```
+  This gives a true running average for the first ~5 runs (run 2 → α=0.5, run 3 → α=0.33, run 4 → α=0.25) before settling at the steady-state `ALPHA = 0.2`. Cold-start estimates become accurate much faster as a result.
 - On the very first run, `ema` is seeded with the actual duration directly (no prior value to blend with).
 - The EMA converges quickly enough that estimates become useful within 3–5 runs.
 
@@ -172,11 +178,32 @@ An opt-in mode (`@timeo.track(learn=True)`) that drives the progress bar using e
 - If the function **overruns** the estimate, the bar stalls at ~99% rather than exceeding 100% or erroring — it completes to 100% only when the function actually returns.
 - `rich` custom progress columns will be used to render this time-driven bar alongside any step-based bars in the same live display.
 
+### Drift Detection
+
+Sustained deviations from the stored estimate trigger an automatic reset, handling cases where a called function's implementation changed without the decorated function's own bytecode changing.
+
+- `recent_durations` stores the last `DRIFT_WINDOW = 3` actual runtimes alongside the EMA.
+- After each run, if `len(recent_durations) >= DRIFT_WINDOW` and the window average deviates from the stored EMA by more than `DRIFT_THRESHOLD = 0.25` (25%), the entry is reset as if it were a brand-new function (run_count → 1, EMA seeded from the latest actual).
+- The threshold is calibrated so that a ~50% sustained runtime change triggers a reset after `DRIFT_WINDOW` consecutive runs, while mild natural variation (~20%) never triggers it.
+- Drift detection fires on the `update_entry` path — no runtime overhead during function execution.
+
 ### Function Change Detection
 
-- At call time, hash the function's bytecode (`fn.__code__.co_code` or the full `code` object via `marshal`/`hashlib`).
+- The cache key is computed at decoration time by hashing the function's full code object via `marshal.dumps(fn.__code__) + SHA-256` in `timeo/hashing.py`.
 - If the hash does not match any cached entry, treat it as a brand-new function (show "Learning timing..." and start fresh).
-- Old/stale entries for the previous hash are not automatically deleted — they accumulate silently. A future cache cleanup utility can address this.
+- Old/stale entries for the previous hash are not automatically deleted — they accumulate silently. Use `timeo cache reset` to clean them up.
+
+### Dependency Hashing (`depends_on`)
+
+- `@timeo.track(learn=True, depends_on=[helper_fn, ...])` includes the bytecode of every listed callable in the cache key digest:
+  ```python
+  h = sha256(marshal(fn.__code__))
+  for dep in depends_on:
+      h.update(marshal(dep.__code__))
+  ```
+- If any dependency's implementation changes, the hash changes and learning restarts immediately — no waiting for drift detection to fire.
+- The hash is computed once at decoration time and stored in the wrapper closure. `depends_on` is intentionally not resolved dynamically at call time to keep call-path overhead zero.
+- Only meaningful when `learn=True`; ignored otherwise.
 
 ## Design Decisions
 
