@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/wtewalt/timeo/compare/v0.3.0...v0.4.0) (2026-04-10)
+
+
+### Features
+
+* add --before date filter to cache reset command ([389915a](https://github.com/wtewalt/timeo/commit/389915ac9df1da6d40692d3b5765b3479e5bfb37))
+* add CLI for cache inspection and reset ([380eaf2](https://github.com/wtewalt/timeo/commit/380eaf2a729b0aa8b14eab1daf93af18916d6164))
+
+
+### Documentation
+
+* add CLI cache inspection commands to CONVENTIONS.md testing section ([cfe2788](https://github.com/wtewalt/timeo/commit/cfe2788c061d46e3e59cadce424931ae263c16ee))
+* update CLAUDE.md with accurate hooks, project structure, release trigger, and cache API ([43e3cf1](https://github.com/wtewalt/timeo/commit/43e3cf1bccc5aaca2f843f42eb8b064ac11cc233))
+
 ## [0.3.0](https://github.com/wtewalt/timeo/compare/v0.2.1...v0.3.0) (2026-04-09)
 
 
