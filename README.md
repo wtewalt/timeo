@@ -8,6 +8,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/timeo)](https://pypi.org/project/timeo/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://github.com/wtewalt/timeo/actions/workflows/ci.yml/badge.svg)](https://github.com/wtewalt/timeo/actions)
+[![GitHub](https://img.shields.io/badge/github-wtewalt%2Ftimeo-blue?logo=github)](https://github.com/wtewalt/timeo)
 
 ```
 ✓ process_files   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  100%  12.4s
