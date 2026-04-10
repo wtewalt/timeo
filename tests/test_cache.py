@@ -169,17 +169,24 @@ def test_decaying_alpha_run3(tmp_path: Path) -> None:
 
 
 def test_decaying_alpha_floors_at_alpha_after_run5(tmp_path: Path) -> None:
-    """After run 5, alpha floors at ALPHA=0.2 and no longer decays."""
+    """After run 5, alpha floors at ALPHA=0.2 and no longer decays.
+
+    Uses 8.0 (20% below the stable EMA of 10.0) as the test value — close
+    enough to stay well within the drift threshold so drift detection does not
+    fire, but different enough from 10.0 that the resulting EMA distinguishes
+    alpha=0.2 (floor) from alpha=1/6 (what an un-floored formula would give).
+    """
     cache_file = tmp_path / "timings.json"
     for _ in range(5):
         update_entry("h", "f", 10.0, cache_path=cache_file)
-    # At run 6, new_run_count=6 → 1/6 < 0.2, so floor kicks in.
-    update_entry("h", "f", 0.0, cache_path=cache_file)
+    # At run 6, new_run_count=6 → 1/6 ≈ 0.167 < 0.2, so floor kicks in.
+    # 8.0 is 20% below the EMA — safely below the 25% drift threshold.
+    update_entry("h", "f", 8.0, cache_path=cache_file)
     entry = get_entry("h", cache_path=cache_file)
     assert entry is not None
-    # If floor is working, alpha == ALPHA == 0.2
-    # ema before last run was ~10.0 (all previous values were 10.0)
-    expected = ALPHA * 0.0 + (1 - ALPHA) * 10.0
+    # With alpha=0.2 (floor): ema = 0.2*8 + 0.8*10 = 9.6
+    # With alpha=1/6 (no floor): ema = (1/6)*8 + (5/6)*10 ≈ 9.67  (different)
+    expected = ALPHA * 8.0 + (1 - ALPHA) * 10.0
     assert entry.ema_duration_seconds == pytest.approx(expected, rel=1e-3)
 
 
@@ -188,13 +195,32 @@ def test_decaying_alpha_floors_at_alpha_after_run5(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_drift_detection_no_reset_during_warmup(tmp_path: Path) -> None:
+    """Drift is never triggered during the first DRIFT_WINDOW+1 warm-up runs.
+
+    Without this guard, naturally ascending early values (1s, 2s, 3s) would
+    produce avg_recent > EMA and incorrectly reset the entry before it has
+    had a chance to converge.
+    """
+    cache_file = tmp_path / "timings.json"
+    # Three ascending values — would trigger drift without the warm-up guard.
+    update_entry("h", "f", 1.0, cache_path=cache_file)
+    update_entry("h", "f", 2.0, cache_path=cache_file)
+    update_entry("h", "f", 3.0, cache_path=cache_file)
+    entry = get_entry("h", cache_path=cache_file)
+    assert entry is not None
+    assert entry.run_count == 3  # no spurious reset
+
+
 def test_drift_detection_resets_on_sustained_change(tmp_path: Path) -> None:
     """DRIFT_WINDOW consecutive runs ~50% above EMA should trigger a reset.
 
-    The math: after 8 stable runs at 10s the EMA converges to 10s.  With
-    new_duration=15s the avg_recent only exceeds DRIFT_THRESHOLD once all
-    DRIFT_WINDOW slots are filled with the new value (the EMA adjusts slowly
-    via alpha=0.2 so it still lags by >25% on run DRIFT_WINDOW).
+    Drift detection only activates after entry.run_count > DRIFT_WINDOW, so
+    the EMA has had a chance to converge before comparisons begin.  After 8
+    stable runs at 10s the EMA converges to 10s.  With new_duration=15s the
+    avg_recent only exceeds DRIFT_THRESHOLD once all DRIFT_WINDOW slots are
+    filled with the new value (the EMA adjusts slowly via alpha=0.2 so it
+    still lags by >25% on run DRIFT_WINDOW).
     """
     cache_file = tmp_path / "timings.json"
     # Converge EMA to 10s.
