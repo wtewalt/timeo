@@ -1,6 +1,6 @@
 # flake.nix — Explained
 
-This Nix flake sets up a reproducible Python development environment for a project called **timeo/senzu**, using `uv` for dependency management, `uv2nix` to bridge uv lockfiles into Nix, and `pre-commit` for code quality hooks.
+This Nix flake sets up a reproducible Python development environment for **timeo**, using `uv` for dependency management, `uv2nix` to bridge uv lockfiles into Nix, and `pre-commit` for code quality hooks.
 
 ---
 
@@ -38,14 +38,14 @@ This yields two distinct virtual environments:
 | Env | Name | Contents | Use case |
 |---|---|---|---|
 | `timeoEnv` | `timeo-env` | Default (non-dev) dependencies only | Production / packaging |
-| `devEnv` | `timeo-dev-env` | All deps including dev extras, `senzu` editable | Day-to-day development |
+| `devEnv` | `timeo-dev-env` | All deps including dev extras, `timeo` editable | Day-to-day development |
 
-The editable install uses a separate overlay (`editableOverlay`) that installs the `senzu` package pointing at `$REPO_ROOT` on disk — changes to source files are reflected immediately without reinstalling. Hatchling's `editables` package is injected as a build-time dependency to make this work correctly.
+The editable install uses a separate overlay (`editableOverlay`) that installs the `timeo` package pointing at `$REPO_ROOT` on disk — changes to source files are reflected immediately without reinstalling. Hatchling's `editables` package is injected as a build-time dependency to make this work correctly.
 
 ### Packages & Apps
 
 - **`packages.default`** — the frozen `timeoEnv` virtualenv.
-- **`apps.default`** — runs `senzu` directly via `nix run`, sourced from `timeoEnv`.
+- **`apps.default`** — runs `timeo` directly via `nix run`, sourced from `timeoEnv`.
 
 ### Dev Shells
 
@@ -88,7 +88,7 @@ nix develop
 # Enter the dev shell with gcloud included
 nix develop .#with-gcloud
 
-# Run the senzu app directly
+# Run the timeo app directly
 nix run
 
 # Run checks (installs pre-commit hooks)
