@@ -42,7 +42,10 @@ Downloading data   ━━━━━━━━━━━━━━━━━━━━�
 - **`timeo/decorator.py`** — The `@timeo.track` decorator. Wraps a function, registers it with the progress manager, and starts/stops tracking around the function's execution.
 - **`timeo/manager.py`** — The `ProgressManager` singleton. Owns the `rich.progress.Progress` instance, maintains the registry of tracked tasks, and controls the live display lifecycle.
 - **`timeo/task.py`** — Represents a single tracked task (name, total, current progress, metadata).
-- **`timeo/__init__.py`** — Public API surface. Exports `track`, `advance`, and any other user-facing symbols.
+- **`timeo/cache.py`** — Timing cache I/O and EMA logic. Exposes `resolve_cache_path()`, `get_entry()`, `update_entry()`.
+- **`timeo/hashing.py`** — Hashes function bytecode via `marshal` + SHA-256 to produce stable cache keys.
+- **`timeo/cli.py`** — `click`-based CLI. Registered as the `timeo` entry point. Commands: `timeo cache info`, `timeo cache reset`.
+- **`timeo/__init__.py`** — Public API surface. Exports `track`, `advance`, `iter`, and `live`.
 
 ### Design Principles
 
@@ -110,6 +113,7 @@ pre-commit run --all-files
 ```
 timeo/
 ├── __init__.py       # public API
+├── cli.py            # click-based CLI (timeo cache info / reset)
 ├── decorator.py      # @timeo.track implementation
 ├── manager.py        # ProgressManager, rich.Progress integration
 ├── task.py           # TrackedTask dataclass/model

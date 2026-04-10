@@ -19,15 +19,20 @@ classifiers = [
     "Topic :: Terminals",
 ]
 dependencies = [
+    "click>=8.0",
     "platformdirs>=4.0",
     "rich>=14.3.3",
 ]
+
+[project.scripts]
+timeo = "timeo.cli:cli"
 
 [dependency-groups]
 dev = [
     "pre-commit>=3.0",
     "pytest>=8.0",
     "pytest-mock>=3.12",
+    "click[testing]>=8.0",
 ]
 
 [build-system]
