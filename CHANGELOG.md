@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.2](https://github.com/wtewalt/timeo/compare/v0.5.1...v0.5.2) (2026-04-30)
+
+
+### Bug Fixes
+
+* replace senzu template references with timeo in flake-explained.md ([dbdd734](https://github.com/wtewalt/timeo/commit/dbdd7347355df688fb099026ae7bf5aa9d983a39))
+* replace senzu template references with timeo in flake.nix ([2054cc4](https://github.com/wtewalt/timeo/commit/2054cc48e79e2d9969a639d80179cf73c538a8bb))
+
+
+### Documentation
+
+* add learn mode callout to Why timeo section ([42c99c5](https://github.com/wtewalt/timeo/commit/42c99c54195dd4c8a376406aa9a3e1fc9e9fbdb6))
+
 ## [0.5.1](https://github.com/wtewalt/timeo/compare/v0.5.0...v0.5.1) (2026-04-10)
 
 
