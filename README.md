@@ -24,6 +24,8 @@
 
 Most progress bar libraries ask you to wrap your loops manually and manage the display yourself. `timeo` gets out of the way — decorate a function, iterate normally, done.
 
+The other thing that sets timeo apart is that it can actually **learn** how long your functions take. After the first run, it remembers the timing and uses it to drive the progress bar on every subsequent run — so instead of a generic spinner, you get a bar that fills at a pace that reflects reality. The more times a function runs, the more accurate the estimate gets. And if your code changes in a way that affects runtime, timeo detects the drift and resets automatically rather than showing you a bar based on stale data.
+
 ```python
 # before
 for item in items:
